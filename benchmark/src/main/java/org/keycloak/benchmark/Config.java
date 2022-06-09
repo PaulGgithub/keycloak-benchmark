@@ -63,7 +63,7 @@ public class Config {
     /**
      * The number of users per second
      */
-    public static final double usersPerSec = Double.valueOf(System.getProperty("users-per-sec", "1"));
+    public static final int usersPerSec = Integer.getInteger("users-per-sec", 1);
 
     /**
      * The ramp up period, in seconds, so that new users are linearly created in a period of time.
@@ -94,6 +94,11 @@ public class Config {
      * For tests relying on user login, the number of bad login attempts.
      */
     public static final int badLoginCount = Integer.getInteger("bad-login-count", 0);
+
+    /**
+     * How many times to call the refresh token endpoint.
+     */
+    public static final int refreshTokenCount = Integer.getInteger("refresh-token-count", 1);
 
     /**
      * If tests should infer HTML resources and include steps to fetch them automatically.

@@ -1,3 +1,5 @@
+# Forked repo to test offline session access and cookie logins
+
 # Keycloak Benchmark
 
 This repository contains the necessary tools to run performances tests on a Keycloak server.

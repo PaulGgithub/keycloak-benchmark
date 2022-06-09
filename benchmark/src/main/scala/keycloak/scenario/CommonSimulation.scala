@@ -38,8 +38,9 @@ abstract class CommonSimulation extends Simulation {
     val scn = scenario(name).exec(builder.chainBuilder)
     setUp(
       scn.inject(
-        rampUsersPerSec(0.001) to Config.usersPerSec during (Config.rampUpPeriod),
-        constantUsersPerSec(Config.usersPerSec) during (Config.warmUpPeriod + Config.measurementPeriod))
+//        rampUsersPerSec(0.001).to(Config.usersPerSec).during(Config.rampUpPeriod),
+        rampConcurrentUsers(1).to(Config.usersPerSec).during(Config.rampUpPeriod),
+        constantConcurrentUsers(Config.usersPerSec).during(Config.warmUpPeriod + Config.measurementPeriod))
         .protocols(defaultHttpProtocol()))
       .assertions(
         global.failedRequests.count.lt(Config.maxFailedRequests + 1),

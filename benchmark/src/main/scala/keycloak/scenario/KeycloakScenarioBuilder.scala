@@ -135,7 +135,7 @@ class KeycloakScenarioBuilder {
         .queryParam("client_id", "${clientId}")
         .queryParam("state", "${state}")
         .queryParam("redirect_uri", "${redirectUri}")
-        .queryParam("scope", "openid profile")
+        .queryParam("scope", "openid profile offline_access")
         .check(status.is(200),
           regex("action=\"([^\"]*)\"").find.transform(_.replaceAll("&amp;", "&")).saveAs("login-form-uri"),
           regex("href=\"/auth(/realms/[^\"]*/login-actions/registration[^\"]*)\"").find.transform(_.replaceAll("&amp;", "&")).saveAs("registration-link")))
@@ -146,6 +146,31 @@ class KeycloakScenarioBuilder {
     if (pauseAfter) {
       userThinkPause()
     }
+    this
+  }
+
+  def loginWithIdenitityCookie(): KeycloakScenarioBuilder = {
+    chainBuilder = chainBuilder
+      .exec(http("Browser to Log In Endpoint with identity cookie")
+        .get(LOGIN_ENDPOINT)
+        .headers(UI_HEADERS)
+        .queryParam("login", "true")
+        .queryParam("response_type", "code")
+        .queryParam("client_id", "${clientId}")
+        .queryParam("state", "${state}")
+        .queryParam("redirect_uri", "${redirectUri}")
+        .queryParam("scope", "openid profile offline_access")
+        .check(
+          status.is(302), header("Location").saveAs("login-redirect"),
+          header("Location").transform(t => {
+            val codeStart = t.indexOf(CODE_PATTERN)
+            if (codeStart == -1) {
+              return null
+            }
+            t.substring(codeStart + CODE_PATTERN.length, t.length())
+          }).notNull.saveAs("code")
+        ))
+      .exitHereIfFailed
     this
   }
 
@@ -205,7 +230,83 @@ class KeycloakScenarioBuilder {
         .formParam("client_secret", "${clientSecret}")
         .formParam("redirect_uri", "${redirectUri}")
         .formParam("code", "${code}")
-        .check(status.is(200)))
+        .check(
+          status.is(200),
+          jsonPath("$..refresh_token").find.saveAs("refreshToken"),
+          jsonPath("$..access_token").find.saveAs("token")
+        ))
+      .exitHereIfFailed
+    this
+  }
+
+  def exchangeCodeFromCookieLogin(): KeycloakScenarioBuilder = {
+    chainBuilder = chainBuilder
+      .exec(http("Exchange Code from cookie login")
+        .post(TOKEN_ENDPOINT)
+        .headers(UI_HEADERS)
+        .formParam("grant_type", "authorization_code")
+        .formParam("client_id", "${clientId}")
+        .formParam("client_secret", "${clientSecret}")
+        .formParam("redirect_uri", "${redirectUri}")
+        .formParam("code", "${code}")
+        .check(
+          status.is(200),
+          jsonPath("$..refresh_token").find.saveAs("refreshToken"),
+          jsonPath("$..access_token").find.saveAs("token")
+        ))
+      .exitHereIfFailed
+    this
+  }
+
+  def directGrant(): KeycloakScenarioBuilder = {
+    chainBuilder = chainBuilder
+      .exec(http("Exchange Code")
+        .post(TOKEN_ENDPOINT)
+        .headers(UI_HEADERS)
+        .formParam("grant_type", "password")
+        .formParam("client_id", "${clientId}")
+        .formParam("client_secret", "${clientSecret}")
+        .formParam("username", "${username}")
+        .formParam("password", "${password}")
+        .check(
+          status.is(200),
+          jsonPath("$..refresh_token").find.saveAs("refreshToken"),
+          jsonPath("$..access_token").find.saveAs("token")
+        ))
+      .exitHereIfFailed
+    this
+  }
+
+  def refreshTokenMultipleTimes(): KeycloakScenarioBuilder = {
+    chainBuilder = chainBuilder.exec(
+      repeat(Random.nextInt(Config.refreshTokenCount) + 1) {
+        exec(http("Refresh token")
+          .post(TOKEN_ENDPOINT)
+          .headers(UI_HEADERS)
+          .formParam("grant_type", "refresh_token")
+          .formParam("client_id", "${clientId}")
+          .formParam("client_secret", "${clientSecret}")
+          .formParam("refresh_token", "${refreshToken}")
+          .check(status.is(200))
+        )
+          .pause(0, Config.refreshTokenPeriod)
+          .exitHereIfFailed
+      })
+    this
+  }
+
+  //  https://www.keycloak.org/docs/latest/securing_apps/index.html#endpoints
+  def logoutSession(): KeycloakScenarioBuilder = {
+    chainBuilder = chainBuilder
+      .exec(http("Logout user session from refresh token")
+        .post(LOGOUT_ENDPOINT)
+        .headers(UI_HEADERS)
+        .formParam("client_id", "${clientId}")
+        .formParam("client_secret", "${clientSecret}")
+        .formParam("refresh_token", "${refreshToken}")
+        .formParam("scope", "openid profile offline_access")
+        .check(status.is(204))
+      )
       .exitHereIfFailed
     this
   }
